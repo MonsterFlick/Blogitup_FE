@@ -64,11 +64,12 @@ export default function Home() {
 
       console.log(" Sending to TTS:", finalContent);
 
-      const res = await fetch("http://localhost:4000/api/tts", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: finalContent }),
       });
+      
 
       if (res.status === 429) {
         const text = await res.text();
