@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<"text" | "url">("text");
@@ -12,8 +12,28 @@ export default function Home() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState("");
+  const [pitch, setPitch] = useState(1.3);
+  const [rate, setRate] = useState(1.2);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const allVoices = speechSynthesis.getVoices();
+      const englishVoices = allVoices.filter((v) => v.lang.startsWith("en"));
+      setVoices(englishVoices);
+      if (englishVoices.length > 0) {
+        setSelectedVoiceURI(englishVoices[0].voiceURI);
+      }
+    };
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = loadVoices;
+    }
+    loadVoices();
+  }, []);
 
   function isValidHttpUrl(string: string): boolean {
     try {
@@ -28,15 +48,12 @@ export default function Home() {
     if (!isValidHttpUrl(url)) {
       throw new Error("❌ Invalid URL format");
     }
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/fetch-url?url=${encodeURIComponent(url)}`);
-      const data = await res.json();
-      if (!data.textContent) throw new Error("No blog content found");
-      return data.textContent;
-    } catch (err: any) {
-      throw new Error(err.message || "Failed to fetch blog content");
-    }
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/fetch-url?url=${encodeURIComponent(url)}`
+    );
+    const data = await res.json();
+    if (!data.textContent) throw new Error("No blog content found");
+    return data.textContent;
   }
 
   const handleSubmit = async () => {
@@ -44,41 +61,27 @@ export default function Home() {
     setReplyText("");
     setError("");
     stopTTS();
-
     try {
-      let finalContent = "";
-
+      let content = "";
       if (inputMode === "url") {
         if (!url.trim().startsWith("http")) {
           throw new Error("Invalid URL. Please include http:// or https://");
         }
-        finalContent = await fetchContentFromURL(url);
+        content = await fetchContentFromURL(url);
       } else {
-        if (!textContent.trim()) {
-          throw new Error("Please enter some blog text.");
-        }
-        finalContent = textContent.trim();
+        if (!textContent.trim()) throw new Error("Please enter blog text.");
+        content = textContent.trim();
       }
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: finalContent }),
+        body: JSON.stringify({ text: content }),
       });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`TTS Error: ${text}`);
-      }
-
       const data = await res.json();
-      if (!data.text) {
-        throw new Error("No response text from Gemini.");
-      }
-
+      if (!data.text) throw new Error("No Gemini response.");
       setReplyText(data.text);
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Try again.");
+      setError(err.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -86,25 +89,22 @@ export default function Home() {
 
   const speak = () => {
     if (!replyText) return;
-
-    stopTTS(); // reset any previous speech
-
+    stopTTS();
     const utterance = new SpeechSynthesisUtterance(replyText);
+    utterance.pitch = pitch;
+    utterance.rate = rate;
     utterance.lang = "en-US";
-    utterance.pitch = 1;
-    utterance.rate = 1;
     utterance.volume = 1;
-
+    const voice = voices.find((v) => v.voiceURI === selectedVoiceURI);
+    if (voice) utterance.voice = voice;
     utterance.onend = () => {
       setIsPlaying(false);
       setIsPaused(false);
     };
-
     utterance.onerror = () => {
       setIsPlaying(false);
       setIsPaused(false);
     };
-
     speechSynthesis.speak(utterance);
     utteranceRef.current = utterance;
     setIsPlaying(true);
@@ -138,7 +138,7 @@ export default function Home() {
         Gemini Blog Insights + Browser TTS
       </h1>
 
-      {/* Input Mode Toggle */}
+      {/* Toggle */}
       <div className="flex items-center justify-center mb-4 gap-4">
         <span className="font-medium">Paste Text</span>
         <label className="relative inline-flex items-center cursor-pointer">
@@ -173,7 +173,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* Submit Button */}
       <button
         onClick={handleSubmit}
         disabled={loading || (!textContent && !url)}
@@ -182,7 +181,6 @@ export default function Home() {
         {loading ? "Generating..." : "Generate"}
       </button>
 
-      {/* Loader */}
       {loading && (
         <div className="flex items-center justify-center mt-4 gap-2 text-blue-600">
           <svg
@@ -209,16 +207,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Error */}
       {error && <p className="text-red-500 mt-4">{error}</p>}
 
-      {/* Response */}
       {replyText && (
         <div className="mt-6 border border-gray-300 bg-gray-100 p-4 rounded">
           <h2 className="text-xl font-semibold mb-2 text-black">Gemini Response</h2>
           <p className="whitespace-pre-wrap text-gray-800">{replyText}</p>
 
-          {/* TTS Controls */}
+          {/* TTS Buttons */}
           <div className="flex gap-3 mt-4">
             <button
               onClick={speak}
@@ -249,6 +245,54 @@ export default function Home() {
               ⏹️ Stop
             </button>
           </div>
+
+          {/* Toggle Advanced Controls */}
+          <button
+            onClick={() => setShowAdvanced((prev) => !prev)}
+            className="mt-4 text-sm underline text-blue-600 hover:text-blue-800"
+          >
+            {showAdvanced ? "Hide Advanced TTS Controls" : "Show Advanced TTS Controls"}
+          </button>
+
+          {/* Advanced Controls */}
+          {showAdvanced && (
+            <div className="mt-4 text-black">
+              <label className="block font-medium mb-1">Voice</label>
+              <select
+                value={selectedVoiceURI}
+                onChange={(e) => setSelectedVoiceURI(e.target.value)}
+                className="w-full border rounded p-2 mb-4 text-black"
+              >
+                {voices.map((voice) => (
+                  <option key={voice.voiceURI} value={voice.voiceURI}>
+                    {voice.name} ({voice.lang})
+                  </option>
+                ))}
+              </select>
+
+              <label className="block font-medium mb-1">Pitch: {pitch.toFixed(1)}</label>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                value={pitch}
+                onChange={(e) => setPitch(parseFloat(e.target.value))}
+                className="w-full mb-4"
+              />
+
+              <label className="block font-medium mb-1">Rate: {rate.toFixed(1)}</label>
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={rate}
+                onChange={(e) => setRate(parseFloat(e.target.value))}
+                className="w-full"
+              />
+            </div>
+          )}
         </div>
       )}
     </main>
