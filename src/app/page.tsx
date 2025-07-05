@@ -26,7 +26,7 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/fetch-url?url=${encodeURIComponent(url)}`);
       const data = await res.json();
       console.log(" Data from /api/fetch-url:", data);
       if (!data.textContent) throw new Error("No blog content found");
