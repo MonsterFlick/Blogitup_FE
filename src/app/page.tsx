@@ -1,103 +1,217 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [inputMode, setInputMode] = useState<"text" | "url">("text");
+  const [textContent, setTextContent] = useState("");
+  const [url, setUrl] = useState("");
+  const [replyText, setReplyText] = useState("");
+  const [audioUrl, setAudioUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  function isValidHttpUrl(string: string): boolean {
+    try {
+      const url = new URL(string);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function fetchContentFromURL(url: string): Promise<string> {
+    if (!isValidHttpUrl(url)) {
+      throw new Error("❌ Invalid URL format");
+    }
+
+    try {
+      const res = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      console.log(" Data from /api/fetch-url:", data);
+      if (!data.textContent) throw new Error("No blog content found");
+      return data.textContent;
+    } catch (err: any) {
+      console.error(" Error in fetchContentFromURL:", err);
+      throw new Error(err.message || "Failed to fetch content from URL");
+    }
+  }
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setReplyText("");
+    setAudioUrl("");
+    setError("");
+
+    try {
+      let finalContent = "";
+
+      if (inputMode === "url") {
+        if (!url.trim().startsWith("http")) {
+          throw new Error("Invalid URL. Please include http:// or https://");
+        }
+
+        const extracted = await fetchContentFromURL(url);
+        console.log(" Extracted blog text from URL:", extracted);
+        finalContent = extracted;
+      } else {
+        if (!textContent.trim()) {
+          throw new Error("Please enter some blog text.");
+        }
+
+        finalContent = textContent.trim();
+      }
+
+      console.log(" Sending to TTS:", finalContent);
+
+      const res = await fetch("http://localhost:4000/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: finalContent }),
+      });
+
+      if (res.status === 429) {
+        const text = await res.text();
+        console.warn(" TTS quota exceeded:", text);
+        throw new Error(" TTS quota exceeded. Try again tomorrow or upgrade your Gemini plan.");
+      }
+      
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(" Backend error response:", text);
+        throw new Error(`TTS Error: ${text}`);
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        console.error(" Failed to parse JSON from TTS response:", err);
+        throw new Error("TTS returned invalid JSON format.");
+      }
+
+      if (!data.audioBase64 || !data.text) {
+        throw new Error("Incomplete data from TTS response.");
+      }
+
+      setReplyText(data.text);
+
+      const audioBlob = new Blob(
+        [Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0))],
+        { type: "audio/wav" }
+      );
+      setAudioUrl(URL.createObjectURL(audioBlob));
+    } catch (err: any) {
+      console.error(" handleSubmit Error:", err);
+      setError(err.message || "Something went wrong. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="max-w-3xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6 text-center">
+         Gemini Blog insights and TTS
+      </h1>
+
+      {/*  Toggle Switch */}
+      <div className="flex items-center justify-center mb-4 gap-4">
+        <span className="font-medium">Paste Text</span>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={inputMode === "url"}
+            onChange={() =>
+              setInputMode((prev) => (prev === "text" ? "url" : "text"))
+            }
+            className="sr-only peer"
+          />
+          {/* Track */}
+          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer-checked:bg-blue-600 transition-all duration-300" />
+          {/* Dot */}
+          <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 transform peer-checked:translate-x-5" />
+        </label>
+        <span className="font-medium">From URL</span>
+      </div>
+
+      {/*  Dim + Disable Inputs During Loading */}
+      <div className={loading ? "opacity-50 pointer-events-none" : ""}>
+        {inputMode === "text" ? (
+          <textarea
+            className="w-full h-48 p-3 border rounded mb-4"
+            placeholder="Paste your blog content here..."
+            value={textContent}
+            onChange={(e) => setTextContent(e.target.value)}
+            disabled={loading}
+          />
+        ) : (
+          <input
+            className="w-full p-3 border rounded mb-4"
+            placeholder="Enter blog URL..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={loading}
+          />
+        )}
+      </div>
+
+      {/* Submit Button */}
+      <button
+        onClick={handleSubmit}
+        disabled={loading || (!textContent && !url)}
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition disabled:opacity-50"
+      >
+        {loading ? "Generating..." : "Generate"}
+      </button>
+
+      {/* Spinner with Label */}
+      {loading && (
+        <div className="flex items-center justify-center mt-4 gap-2 text-blue-600">
+          <svg
+            className="animate-spin h-6 w-6"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z"
+            />
+          </svg>
+          <span className="text-base font-medium">Generating insights and audio…</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      )}
+
+      {/*  Error Display */}
+      {error && <p className="text-red-500 mt-4">{error}</p>}
+
+      {/* Gemini Response */}
+      {replyText && (
+        <div className="mt-6 border border-gray-300 bg-gray-100 p-4 rounded">
+          <h2 className="text-xl font-semibold mb-2 text-black">
+             Gemini Response
+          </h2>
+          <p className="whitespace-pre-wrap text-gray-800">{replyText}</p>
+        </div>
+      )}
+
+      {/* Audio Output */}
+      {audioUrl && (
+        <div className="mt-4">
+          <h2 className="text-xl font-semibold mb-2">🔊 Audio</h2>
+          <audio controls src={audioUrl} autoPlay className="w-full" />
+        </div>
+      )}
+    </main>
   );
 }
