@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+# BlogitUp FE 📰🔊
 
-First, run the development server:
+This is the frontend for **BlogitUp**, a web application that lets users paste blog content or enter a blog URL to generate AI-powered insights and listen to them using the browser's built-in Text-to-Speech engine.
+
+## 🌟 Features
+
+- 📥 **Input Options**: Paste raw blog text or fetch from a given URL.
+- 🤖 **AI Insights**: Sends content to Gemini AI to generate meaningful summaries.
+- 🗣️ **Browser TTS**: Reads the AI insights aloud using Web Speech API (play, pause, resume, stop).
+- 🎛️ **Advanced TTS Controls**: Change voice, pitch, rate (optional dropdown).
+
+---
+
+## 🧩 Tech Stack
+
+- **Next.js** (App Router)
+- **TypeScript**
+- **Tailwind CSS**
+- **Google Gemini API (Flash 1.5)** for insights only
+- **Browser SpeechSynthesis API** for TTS
+
+---
+
+## 🚀 Deployment URLs
+
+- 🌐 **Frontend (Vercel)**:  
+  [`https://blogitup-fe.vercel.app`](https://blogitup-fe.vercel.app)
+
+- 🔧 **Backend (Render)**:  
+  [`https://blogitup-be.onrender.com`](https://blogitup-be.onrender.com)
+
+- 📦 **GitHub Repo (FE)**:  
+  [`https://github.com/MonsterFlick/Blogitup_FE`](https://github.com/MonsterFlick/Blogitup_FE)
+
+- 🔧 **GitHub Repo (BE)**:  
+  [`https://github.com/MonsterFlick/blogitup_BE`](https://github.com/MonsterFlick/blogitup_BE)
+
+---
+
+## 🛠️ Local Setup
 
 ```bash
+git clone https://github.com/MonsterFlick/Blogitup_FE.git
+cd Blogitup_FE
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+````
+
+> ✅ Make sure to set the environment variable:
+
+```env
+NEXT_PUBLIC_BACKEND_URL=https://blogitup-be.onrender.com
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 💡 Notes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+* Gemini’s **TTS was removed** due to daily quota limits — replaced with browser’s native TTS for reliability and offline functionality.
+* The backend runs on **port 4000** locally.
+* If you encounter an **API limit error** related to Gemini, please contact the maintainer to rotate the API key.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 📅  Requirements
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This project was built for an assignment with the following goals:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+* Accept blog input (text/URL)
+* Generate Gemini insights
+* Read aloud using TTS
+* Provide a clean, interactive frontend
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## ✨ Credits
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built by [Om Thakur](https://github.com/MonsterFlick) using Gemini + Vercel + Render + Bun + Next.js.
+
+```
+
+
